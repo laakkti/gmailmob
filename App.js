@@ -1,6 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import type {Node} from 'react';
-import axios from "axios";
+import axios from 'axios';
 
 import {
   GoogleSignin,
@@ -19,25 +19,25 @@ import {
   Button,
 } from 'react-native';
 
-const getConfig = (token) => {
+const getConfig = token => {
   let _token = `Bearer ${token}`;
   const config = {
-    headers: { Authorization: _token },
+    headers: {Authorization: _token},
   };
 
   return config;
 };
 
-
 //const userID='laakkti@gmail.com';
-const userID='gtwmob1@gmail.com';
+const userID = 'gtwmob1@gmail.com';
+//const API_KEY='AIzaSyCzaRAJl1ls_7Q32xLsOhXayEoBRykEBeE';
+const API_KEY = 'AIzaSyCzaRAJl1ls_7Q32xLsOhXayEoBRykEBeE';
 
-const baseUrl=`https://gmail.googleapis.com/gmail/v1/users/${userID}/`
+const baseUrl = `https://gmail.googleapis.com/gmail/v1/users/${userID}/`;
 
+// tee enemmän funktioita niin helpommin ja selkeämmin
 
-// tee enemmän funktioita niin helpommin ja selkeämmin 
-
-const getScope=()=>{
+const getScope = () => {
   return {
     scopes: ['https://mail.google.com/'], // [Android] what API you want to access on behalf of the user, default is email and profile
     webClientId:
@@ -51,59 +51,110 @@ const getScope=()=>{
     openIdRealm: '', // [iOS] The OpenID2 realm of the home web server. This allows Google to include the user's OpenID Identifier in the OpenID Connect ID token.
     profileImageSize: 120, // [iOS] The desired height (and width) of the profile image. Defaults to 120px
   };
+};
 
-}
+const getMessages = async config => {
+  const response = await axios.get(baseUrl + 'messages', config);
 
-const getMessages = async (config) => {
-    
-  const response = await axios.get(baseUrl + "messages", config);
+  let res = response.data.messages;
 
-  let res=response.data.messages;
-
-  let messages=res.map(message =>message.id);
-  console.log(messages);
+  let messages = res.map(message => message.id);
+  //console.log(messages);
 
   //console.log(JSON.stringify(response.data));
 
-  return response.data;
+  return messages;
 };
 
+
+const getMessageSubject=(message)=>{
+
+    const headers=message.payload.headers;
+    for(item in headers){
+      Console.log(item.name);
+    }
+}
+
+/*
+private String getMessageSubject(Message message) throws Exception {
+
+  //		System.out.println(message.toPrettyString());
+  
+          //MessagePart msgpart = message.getPayload();
+  
+  
+          List<MessagePartHeader> headers = message.getPayload().getHeaders();
+  
+          for (MessagePartHeader header : headers) {
+  
+              if (header.getName().equals("Subject")) {
+  
+                  return header.getValue();
+  
+              }
+  
+          }
+  
+          return "";
+  
+      }
+*/
+const getMessageContent=(message)=>{
+
+  return message.snippet;
+}
+
+
+const readMessage = async (msgId, config) => {
+  // https://gmail.googleapis.com/gmail/v1/users/gtwmob1%40gmail.com/messages/1816ccd8188828de?key=[YOUR_API_KEY] HTTP/1.1
+  let url = baseUrl + 'messages/' + msgId + '?key=' + API_KEY;
+  console.log(url);
+  try {
+    const response = await axios.get(url, config);
+    
+    return response.data;
+  } catch (e) {
+    console.log('ERROR: ' + e.message);
+    return "ERROR: "+e.message;
+  }
+
+};
 
 const App: () => Node = () => {
   const [userInfo, setUserInfo] = useState('');
   useEffect(() => {
-
     // hae scope
     GoogleSignin.configure(getScope());
   }, []);
 
   const getHandleMessages = async () => {
+    let accessToken = await getAccessToken();
+    console.log('token= ' + accessToken);
+    let config = getConfig(accessToken);
 
-    
-    let accessToken=await getAccessToken();
-    let config=getConfig(accessToken)
-        
-        
-    let messages= await getMessages(config)
-  
-    console.log(messages);
-  
-  }
+    let messages = await getMessages(config);
 
-  const getAccessToken=async ()=>{
-  const res = await GoogleSignin.getTokens();
-   return res.accessToken;   
-  }
+    // viimeisin viesti [0]
+    let message = await readMessage(messages[0], config);
+    console.log("#########################################################################");
+    console.log(getMessageContent(message));
+    getMessageSubject(message);
+    //console.log(messages);
+  };
 
+  const getAccessToken = async () => {
+    const res = await GoogleSignin.getTokens();
+    return res.accessToken;
+  };
 
   const signIn = async () => {
     try {
       console.log('before sign');
       await GoogleSignin.hasPlayServices();
       //const userInfo = await GoogleSignin.signIn();
-      
+
       const userInfo = await GoogleSignin.signIn();
-      console.log(userInfo)
+      console.log(userInfo);
       /*await GoogleSignin.signIn().then(result => {
         console.log(result);
         //console.log(result.idToken);
@@ -111,8 +162,8 @@ const App: () => Node = () => {
       //let tokens=GoogleSignin.getTokens('https://mail.google.com/');
 
       //const currentUser = await GoogleSignin.getTokens().then((res)=>{
-        //console.log(res.accessToken );
-        
+      //console.log(res.accessToken );
+
       //});
 
       //console.log("tokensxxx ==== "+JSON.stringify(tokens));
@@ -139,7 +190,7 @@ const App: () => Node = () => {
           onPress={signIn}
           //disabled={this.state.isSigninInProgress}
         />
-        <Button title="Messages" onPress={getHandleMessages}/>
+        <Button title="Messages" onPress={getHandleMessages} />
       </View>
     </SafeAreaView>
   );
