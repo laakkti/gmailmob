@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import type {Node} from 'react';
 import axios from 'axios';
+import base64 from 'react-native-base64';
 
 import {
   GoogleSignin,
@@ -18,6 +19,8 @@ import {
   View,
   Button,
 } from 'react-native';
+
+// ")); //
 
 const getConfig = token => {
   let _token = `Bearer ${token}`;
@@ -53,71 +56,116 @@ const getScope = () => {
   };
 };
 
-const getMessages = async config => {
-  const response = await axios.get(baseUrl + 'messages', config);
+const getMessages = async (subject, config) => {
+  // GET https://gmail.googleapis.com/gmail/v1/users/gtwmob1%40gmail.com/messages?q=Subject%3AInfo%20is%3Aunread&key=[YOUR_API_KEY] HTTP/1.1
 
-  let res = response.data.messages;
+  //const query="?q=Subject%3AInfo%20is%3Aunread";
+  // Subject saadaan parametrina
+  const query = `?q=Subject:${subject} is:unread`;
+  //console.log(query);
 
-  let messages = res.map(message => message.id);
-  //console.log(messages);
+  const response = await axios.get(baseUrl + 'messages' + query, config);
+  // console.log(response.statusText);
+  // console.log(response.data);
+  // undefined});
 
-  //console.log(JSON.stringify(response.data));
-
+  let messages = [];
+  if (response.statusText !== 'undefined') {
+    let res = response.data.messages;
+    messages = res.map(message => message.id);
+  }
   return messages;
 };
 
-
-const getMessageSubject=(message)=>{
-
-    const headers=message.payload.headers;
-    for(item in headers){
-      Console.log(item.name);
+// pitäis laittaa filtteri getMessages metodiin
+// TURHA, ehto asetettiin jo queryssä
+const getMessageSubject = message => {
+  const headers = message.payload.headers;
+  for (item in headers) {
+    // mutta onhan tuolla indexikin eli suora viittaus siihen
+    if (headers[item].name === 'Subject') {
+      console.log(item + ' == ' + headers[item].value);
     }
-}
+  }
+};
 
-/*
-private String getMessageSubject(Message message) throws Exception {
-
-  //		System.out.println(message.toPrettyString());
-  
-          //MessagePart msgpart = message.getPayload();
-  
-  
-          List<MessagePartHeader> headers = message.getPayload().getHeaders();
-  
-          for (MessagePartHeader header : headers) {
-  
-              if (header.getName().equals("Subject")) {
-  
-                  return header.getValue();
-  
-              }
-  
-          }
-  
-          return "";
-  
-      }
-*/
-const getMessageContent=(message)=>{
-
+const getMessageContent = message => {
   return message.snippet;
+};
+
+
+const sendMessage = async (config) => {
+
+
+let date=Date.now();
+
+let data2send={
+  "date":date,
+  "battery":"55",
+  "temp":"20.1",
+  "location":{"latitude":"123.2",
+                   "longitude":"213.5",
+             } 
+  }
+  data2send=JSON.stringify(data2send);
+
+
+  let datax=(
+    "From: gtwmob1@gmail.com\r\n" +
+    "To: laakkti@gmail.com\r\n" +
+    "Subject: Subject Text\r\n\r\n" +
+    data2send
+  ).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const _data = base64.encode(datax);
+
+
+//xxx = xxx.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+//console.log(xxx);
+//const _data = base64.endecode(xxx);
+
+// https://gmail.googleapis.com/gmail/v1/users/gtwmob1%40gmail.com/messages/send?key=[YOUR_API_KEY] HTTP/1.1
+
+let url = baseUrl + 'messages/send' + '?key=' + API_KEY;
+
+let data={
+  "raw": _data
 }
 
+const response = await axios.post(url, data,config);
+console.log(response);
+
+}
 
 const readMessage = async (msgId, config) => {
+
   // https://gmail.googleapis.com/gmail/v1/users/gtwmob1%40gmail.com/messages/1816ccd8188828de?key=[YOUR_API_KEY] HTTP/1.1
   let url = baseUrl + 'messages/' + msgId + '?key=' + API_KEY;
-  console.log(url);
+  //console.log(url);
   try {
     const response = await axios.get(url, config);
-    
+    //console.log(response.data.payload.parts[0].body.data);
+
+    let data = response.data.payload.parts[0].body.data;
+    console.log(data);
+    //const Buffer = require("buffer").Buffer;
+    //let encodedAuth = new Buffer(data).toString("base64");
+    //console.log(encodedAuth);
+    //console.log(base64.decode(response.data.payload.parts[0].body.data));
+
+    //let xxx=utf8.decode("xxxx");
+    const _data = base64.decode(data);
+    let obj = JSON.parse(_data);
+    console.log(obj);
+    console.log(obj.IP);
+
+    //console.log(base64.decode("eyJUaXRsZSI6Ikhlcm9rdSIsIlRva2VuIjoiYmVhcmVyIGV5SmhiR2NpT2lKSVV6STFOaUlzSW5SNWNDSTZJa3BYVkNKOS5leUoxYzJWeWJtRnRaU0k2SW14aFlXdHJkR2tpTENKcFpDSTZJalZqWTJNME4yWmpPV1U1TURWaE1XTmxPRFE1WVRWak9DSXNJbWxoZENJNk1UVTFPVFU1TWprd09IMC5JbnJDVFFBODd0Z0ZFdU5XUDk1OV95WllJNFg4VWR2T0R4TXNBTnl4LXVFIiwiSVAiOiIxNzIuMTYuOTUuMTgyIiwiVVJMIjoiZGlnaXNhdm9uaWEuaGVyb2t1YXBwLmNvbTxodHRwOi8vZGlnaXNhdm9uaWEuaGVyb2t1YXBwLmNvbS8IiwiUGF0aCI6Ii9hcGkvZGF0YXMiLCJQb3J0Ijo1OTk0NiwiU29ja2V0SWQiOiJVWUVfX21WN3ZrWDl3NThMQUFBQyIsIlNvdXJjZSI6Imh0dHBzOi8vYXBpLmRhcmtza3kubmV0L2ZvcmVjYXN0L2VhOGE3Y2Q2YTc2YWI3MTM2NTAyZGZlOTFmZGU2ZjdiLyVzP3VuaXRzPXNpJmV4Y2x1ZGU9Y3VycmVudGx5LG1pbnV0ZWx5LGRhaWx5LGFsZXJ0cyxmbGFnczxodHRwczovL2FwaS5kYXJrc2t5Lm5ldC9mb3JlY2FzdC9lYThhN2NkNmE3NmFiNzEzNjUwMmRmZTkxZmRlNmY3Yi8lMjVzP3VuaXRzPXNpJmV4Y2x1ZGU9Y3VycmVudGx5LG1pbnV0ZWx5LGRhaWx5LGFsZXJ0cyxmbGFncz4ifQ0KDQo="));
+
     return response.data;
   } catch (e) {
     console.log('ERROR: ' + e.message);
-    return "ERROR: "+e.message;
+    return 'ERROR: ' + e.message;
   }
-
 };
 
 const App: () => Node = () => {
@@ -127,19 +175,42 @@ const App: () => Node = () => {
     GoogleSignin.configure(getScope());
   }, []);
 
+
+  const handleSendMessage=async()=>{
+
+      let accessToken = await getAccessToken();
+      //console.log('token= ' + accessToken);
+      let config = getConfig(accessToken);
+      let response = await sendMessage(config);
+  }
+
+
   const getHandleMessages = async () => {
     let accessToken = await getAccessToken();
-    console.log('token= ' + accessToken);
+    //console.log('token= ' + accessToken);
     let config = getConfig(accessToken);
 
-    let messages = await getMessages(config);
-
+    let messages = await getMessages('Query', config);
+    //console.log("messages="+messages.length);
     // viimeisin viesti [0]
-    let message = await readMessage(messages[0], config);
-    console.log("#########################################################################");
-    console.log(getMessageContent(message));
-    getMessageSubject(message);
-    //console.log(messages);
+
+    if (messages.length > 0) {
+      let message = await readMessage(messages[0], config);
+
+      console.log(
+        '#########################################################################',
+      );
+      //console.log(message);
+      /*
+      let content=getMessageContent(message);
+      console.log("################################")
+      
+      content=content.replace(/&quot;/g,'"');
+      console.log(content);
+      */
+      //const obj=JSON.parse(content);
+      //console.log("obj="+obj);
+    }
   };
 
   const getAccessToken = async () => {
@@ -191,6 +262,7 @@ const App: () => Node = () => {
           //disabled={this.state.isSigninInProgress}
         />
         <Button title="Messages" onPress={getHandleMessages} />
+        <Button title="Send message" onPress={handleSendMessage} />
       </View>
     </SafeAreaView>
   );
